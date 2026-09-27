@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UPS Doc Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12161B;
+    --panel:#191F26;
+    --panel-2:#1F2731;
+    --line:#2B3440;
+    --text:#E9EDF1;
+    --muted:#8A97A5;
+    --amber:#F2A93B;
+    --amber-dim:#4A3A1E;
+    --cyan:#3FC7D8;
+    --cyan-dim:#1C3A3F;
+    --good:#59C97E;
+    font-size:16px;
+  }
+  :root:not([data-theme="light"]){ }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#F3F1EC; --panel:#FFFFFF; --panel-2:#F6F4EF; --line:#DCD7CC;
+      --text:#1C1F22; --muted:#6B7280; --amber-dim:#FBE7C6; --cyan-dim:#D3F0F3;
+    }
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; min-height:100%;
+    background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Sans',sans-serif;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .wrap{ max-width:760px; margin:0 auto; padding:36px 20px 64px; }
+  header{ margin-bottom:28px; }
+  .kicker{ font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.04em; color:var(--muted); }
+  h1{ font-size:26px; font-weight:700; margin:6px 0 4px; }
+  .sub{ color:var(--muted); font-size:14px; margin:0; }
+
+  .step{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:18px 20px; margin-bottom:14px;
+    opacity:1; transition:opacity .25s ease;
+  }
+  .step.locked{ opacity:.45; pointer-events:none; }
+  .step-label{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .step-label .n{ width:20px; height:20px; border-radius:5px; background:var(--panel-2); border:1px solid var(--line); display:inline-flex; align-items:center; justify-content:center; font-size:11px; color:var(--text); }
+
+  .toggle{ display:flex; gap:8px; }
+  .toggle button{
+    flex:1; padding:12px 14px; border-radius:8px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); font-size:15px; font-weight:600;
+    cursor:pointer; font-family:inherit;
+  }
+  .toggle button.active[data-type="CPS"]{ background:var(--amber-dim); border-color:var(--amber); color:var(--amber); }
+  .toggle button.active[data-type="DPQ"]{ background:var(--cyan-dim); border-color:var(--cyan); color:var(--cyan); }
+
+  select{
+    width:100%; padding:12px 14px; border-radius:8px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); font-size:15px; font-family:inherit;
+    appearance:none; -webkit-appearance:none;
+    background-image:linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 20px) center, calc(100% - 15px) center;
+    background-size: 5px 5px, 5px 5px; background-repeat:no-repeat;
+  }
+  select:disabled{ opacity:.5; cursor:not-allowed; }
+
+  .note{ font-size:12.5px; color:var(--muted); margin-top:8px; line-height:1.5; }
+  .note.warn{ color:var(--amber); }
+
+  .doclist{ margin-top:6px; }
+  .doclist h2{ font-size:17px; margin:0 0 2px; }
+  .doclist .meta{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); margin-bottom:16px; }
+
+  .group-title{ font-size:12px; font-family:'IBM Plex Mono',monospace; color:var(--muted); margin:18px 0 8px; text-transform:none; }
+  .row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:11px 4px; border-bottom:1px solid var(--line);
+  }
+  .row:last-child{ border-bottom:none; }
+  .row .doc-name{ font-size:14.5px; }
+  .row .doc-num{ font-family:'IBM Plex Mono',monospace; color:var(--muted); font-size:12px; margin-right:8px; }
+  .row-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .btn{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; padding:7px 12px; border-radius:6px;
+    border:1px solid var(--line); background:var(--panel-2); color:var(--text); cursor:pointer;
+  }
+  .btn.open.has-link{ border-color:var(--good); color:var(--good); }
+  .btn.edit{ color:var(--muted); }
+
+  .subitems{ margin-left:14px; }
+
+  footer{ margin-top:26px; font-size:12px; color:var(--muted); line-height:1.6; }
+  footer a{ color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">UPS PRODUCT DOCUMENTATION</div>
+    <h1>Find the right file, fast</h1>
+    <p class="sub">Select a type, model and rating to see the full document checklist. Links you save are remembered on this device.</p>
+  </header>
+
+  <div class="step" id="step-type">
+    <div class="step-label"><span class="n">1</span> Type</div>
+    <div class="toggle">
+      <button data-type="CPS" onclick="pickType('CPS')">CPS</button>
+      <button data-type="DPQ" onclick="pickType('DPQ')">DPQ</button>
+    </div>
+  </div>
+
+  <div class="step locked" id="step-model">
+    <div class="step-label"><span class="n">2</span> Model</div>
+    <select id="model-select" disabled onchange="pickModel(this.value)">
+      <option value="">Choose a model…</option>
+    </select>
+  </div>
+
+  <div class="step locked" id="step-rating">
+    <div class="step-label"><span class="n">3</span> Rating</div>
+    <select id="rating-select" disabled onchange="pickRating(this.value)">
+      <option value="">Choose a rating…</option>
+    </select>
+    <div class="note warn" id="rating-note" style="display:none;"></div>
+  </div>
+
+  <div class="step locked" id="step-docs">
+    <div class="step-label"><span class="n">4</span> Documents</div>
+    <div class="doclist">
+      <h2 id="doc-title">—</h2>
+      <div class="meta" id="doc-meta"></div>
+      <div id="doc-rows"></div>
+    </div>
+  </div>
+
+  <footer>
+    First time you tap Open on a document, paste the OneDrive link for it — it's saved here so next time it opens straight away. Use Edit to replace a saved link.
+  </footer>
+</div>
+
+<script>
+// ---- Data parsed from your notes. CPS ratings are best-effort reads of the
+// handwritten list — check the ones flagged below and correct if needed.
+const DATA = {
+  CPS: {
+    "93T": { ratings: ["15","20","30","40","60","80","100","120","160","200"], unit:"kVA" },
+    "93PR 25kW UPM": { ratings: ["75","125","150","200"], unit:"kVA" },
+    "93PR 62.5kW UPM": { ratings: ["125","300","400-600","1000","1200"], unit:"kVA" },
+    "93PR Tower 3.0": { ratings: ["125","250","300","400-600","875"], unit:"kVA" },
+    "93PR 600kW 3U": { ratings: [], unit:"kVA", note:"Ratings for this model weren't legible in your notes — add them once you confirm." },
+    "9395XR": { ratings: ["875","1500","1800","2500"], unit:"kVA" },
+    "9395P": { ratings: ["300","600","900","1200/1263"], unit:"kVA" },
+    "93HE": { ratings: ["80-120","160-200","250-300","400-500"], unit:"kVA" },
+    "93E GL": { ratings: ["15-20","30","40","60","80"], unit:"kVA" },
+    "93E PANDA": { ratings: ["80","100-120","160-200"], unit:"kVA" },
+    "93XS": { ratings: ["15","20","30","40"], unit:"kVA" },
+  },
+  DPQ: {
+    "9E": { ratings: [], unit:"kVA" },
+    "9145": { ratings: [], unit:"kVA" },
+    "9PX": { ratings: [], unit:"kVA" },
+    "9SX": { ratings: [], unit:"kVA" },
+    "DXRT": { ratings: [], unit:"kVA" },
+    "DXRT-LD": { ratings: [], unit:"kVA" },
+    "CUB": { ratings: [], unit:"kVA" },
+  }
+};
+
+// Document checklist, straight from your list (renumbered where the photo repeated 1.1–1.4).
+const DOCS = [
+  {num:"1.1", name:"Brochure"},
+  {num:"1.2", name:"Product Images"},
+  {num:"1.3", name:"Bid Specification"},
+  {num:"1.4", name:"Certificates & Agency Report", group:[
+    "CE","IEC 62040-1","IEC 62040-2","IEC 62040-3","PEP","MTBF reliability",
+    "Deration – Altitude & temperature","Seismic","Type test report"
+  ]},
+  {num:"1.5", name:"Battle card"},
+  {num:"1.6", name:"Part Code Catalogue"},
+  {num:"1.7", name:"Product Presentation"},
+  {num:"1.8", name:"GA Drawings"},
+  {num:"1.9", name:"3D Drawings"},
+  {num:"1.10", name:"User Manual"},
+  {num:"1.11", name:"Technical Data Sheet"},
+  {num:"1.12", name:"SLD"},
+  {num:"1.13", name:"Product video"},
+  {num:"1.14", name:"Site Plan"},
+];
+
+let state = { type:null, model:null, rating:null };
+
+function pickType(t){
+  state.type = t; state.model = null; state.rating = null;
+  document.querySelectorAll('.toggle button').forEach(b=>b.classList.toggle('active', b.dataset.type===t));
+
+  const modelSel = document.getElementById('model-select');
+  modelSel.innerHTML = '<option value="">Choose a model…</option>';
+  Object.keys(DATA[t]).forEach(m=>{
+    const o = document.createElement('option'); o.value=m; o.textContent=m;
+    modelSel.appendChild(o);
+  });
+  modelSel.disabled = false;
+  document.getElementById('step-model').classList.remove('locked');
+  lock('step-rating'); lock('step-docs');
+  document.getElementById('rating-select').innerHTML = '<option value="">Choose a rating…</option>';
+  document.getElementById('rating-select').disabled = true;
+}
+
+function pickModel(m){
+  if(!m) return;
+  state.model = m; state.rating = null;
+  const entry = DATA[state.type][m];
+  const ratingSel = document.getElementById('rating-select');
+  ratingSel.innerHTML = '<option value="">Choose a rating…</option>';
+  entry.ratings.forEach(r=>{
+    const o = document.createElement('option'); o.value=r; o.textContent = r + ' ' + entry.unit;
+    ratingSel.appendChild(o);
+  });
+  ratingSel.disabled = entry.ratings.length===0;
+  document.getElementById('step-rating').classList.remove('locked');
+  lock('step-docs');
+
+  const note = document.getElementById('rating-note');
+  if(entry.ratings.length===0){
+    note.style.display='block';
+    note.textContent = entry.note || 'No ratings listed yet for this model.';
+  } else {
+    note.style.display='none';
+  }
+}
+
+function pickRating(r){
+  if(!r) return;
+  state.rating = r;
+  renderDocs();
+  document.getElementById('step-docs').classList.remove('locked');
+}
+
+function lock(id){
+  document.getElementById(id).classList.add('locked');
+}
+
+function keyFor(docName){
+  return ['upsdoc', state.type, state.model, state.rating, docName].join('::');
+}
+
+function renderDocs(){
+  const entry = DATA[state.type][state.model];
+  document.getElementById('doc-title').textContent = state.model;
+  document.getElementById('doc-meta').textContent = state.type + ' · ' + state.rating + ' ' + entry.unit;
+
+  const container = document.getElementById('doc-rows');
+  container.innerHTML = '';
+
+  DOCS.forEach(d=>{
+    container.appendChild(makeRow(d.num, d.name));
+    if(d.group){
+      const sub = document.createElement('div');
+      sub.className = 'subitems';
+      d.group.forEach(g=> sub.appendChild(makeRow('', g)) );
+      container.appendChild(sub);
+    }
+  });
+}
+
+function makeRow(num, name){
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  const left = document.createElement('div');
+  left.innerHTML = (num ? `<span class="doc-num">${num}</span>` : '') + `<span class="doc-name">${name}</span>`;
+
+  const actions = document.createElement('div');
+  actions.className = 'row-actions';
+
+  const k = keyFor(name);
+  const saved = safeGet(k);
+
+  const openBtn = document.createElement('button');
+  openBtn.className = 'btn open' + (saved ? ' has-link' : '');
+  openBtn.textContent = saved ? 'Open' : 'Add link';
+  openBtn.onclick = ()=> handleOpen(k, openBtn);
+  actions.appendChild(openBtn);
+
+  if(saved){
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn edit';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = ()=> promptAndSave(k, openBtn);
+    actions.appendChild(editBtn);
+  }
+
+  row.appendChild(left);
+  row.appendChild(actions);
+  return row;
+}
+
+function handleOpen(k, btn){
+  const saved = safeGet(k);
+  if(saved){
+    window.open(saved, '_blank');
+  } else {
+    promptAndSave(k, btn);
+  }
+}
+
+function promptAndSave(k, btn){
+  const existing = safeGet(k) || '';
+  const url = window.prompt('Paste the OneDrive link for this document:', existing);
+  if(url && url.trim()){
+    safeSet(k, url.trim());
+    renderDocs();
+  }
+}
+
+function safeGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function safeSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+</script>
+</body>
+</html>
